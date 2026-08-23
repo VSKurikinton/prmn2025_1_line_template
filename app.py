@@ -1,3 +1,4 @@
+from google.oauth2.service_account import Credentials
 from linebot.v3.webhooks import (
     MessageEvent,
     TextMessageContent
@@ -17,6 +18,7 @@ from linebot.v3 import (
 )
 from flask import Flask, request, abort
 import os
+import json
 import re
 import datetime
 import gspread
@@ -31,7 +33,18 @@ configuration = Configuration(
 handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
 
 
-gc = gspread.service_account(filename='credentials.json')
+credentials_json = os.environ.get('GOOGLE_CREDENTIALS')
+
+if credentials_json:
+    # Render環境（本番）の場合
+    info = json.loads(credentials_json)
+    scopes = ['https://www.googleapis.com/auth/spreadsheets',
+              'https://www.googleapis.com/auth/drive']
+    creds = Credentials.from_service_account_info(info, scopes=scopes)
+    gc = gspread.authorize(creds)
+else:
+    # ローカルPC環境（手元に credentials.json がある場合）
+    gc = gspread.service_account(filename='credentials.json')
 sheet = gc.open('kakeibo-bot-sheets').sheet1
 
 
@@ -62,10 +75,13 @@ def handle_message(event):
     match = re.match(r"^(\S+)\s+(-?\d+)(?:\s+(\d{4}-\d{2}-\d{2}))?$", text)
     if match:
         item, amount, date_str = match.groups()
+        JST = datetime.timezone(datetime.timedelta(hours=9))
+        now = datetime.datetime.now(JST)
         if not date_str:
-            date_str = datetime.date.today().strftime('%Y-%m-%d')
-        sheet.append_row([date_str, item, int(amount)])
-        reply_text = f"【記録完了】\n日付: {date_str}\n用途: {item}\n金額: {amount}円"
+            date_str = now.strftime('%Y-%m-%d')
+        time_str = now.strftime('%H:%M')    
+        sheet.append_row([date_str,time_str, item, int(amount)])
+        reply_text = f"【記録完了】\n日付: {date_str}\n時間: {time_str}\n用途: {item}\n金額: {amount}円"
 
     elif text.startswith("合計"):
         parts = text.split()
