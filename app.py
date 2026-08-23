@@ -77,9 +77,11 @@ def handle_message(event):
         item, amount, date_str = match.groups()
         JST = datetime.timezone(datetime.timedelta(hours=9))
         now = datetime.datetime.now(JST)
+        now_data_str = now.strftime('%Y-%m-%d')
+        time_str = ''
         if not date_str:
-            date_str = now.strftime('%Y-%m-%d')
-        time_str = now.strftime('%H:%M')    
+            date_str = now_data_str
+            time_str = now.strftime('%H:%M')    
         sheet.append_row([date_str,time_str, item, int(amount)])
         reply_text = f"【記録完了】\n日付: {date_str}\n時間: {time_str}\n用途: {item}\n金額: {amount}円"
 
