@@ -78,7 +78,7 @@ def handle_message(event):
         JST = datetime.timezone(datetime.timedelta(hours=9))
         now = datetime.datetime.now(JST)
         now_data_str = now.strftime('%Y-%m-%d')
-        time_str = ''
+        time_str = 'none'
         if not date_str:
             date_str = now_data_str
             time_str = now.strftime('%H:%M')    
