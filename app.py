@@ -87,15 +87,43 @@ def handle_message(event):
 
     elif text.startswith("合計"):
         parts = text.split()
-        target_month = parts[1] if len(
-            parts) > 1 else datetime.date.today().strftime('%Y-%m')
+        target_month = datetime.date.today().strftime('%Y-%m')
+        search_keyword = None
+
+        # 引数の解析（"合計 2026-08" や "合計 ガシャポン"、"合計 2026-08 ガシャポン" に対応）
+        if len(parts) > 1:
+            for p in parts[1:]:
+                if re.match(r"^\d{4}-\d{2}$", p):  # YYYY-MM 形式なら年月として指定
+                    target_month = p
+                else:  # それ以外は用途（キーワード）として指定
+                    search_keyword = p
 
         records = sheet.get_all_records()
-        total = sum(int(r['金額']) for r in records if str(
-            r['日付']).startswith(target_month))
-        reply_text = f"【{target_month}の合計収支】\n合計: {total}円"
+        filtered_records = []
+
+        for r in records:
+            # 年月の判定
+            is_month_match = str(r.get('日付', '')).startswith(target_month)
+            # 用途キーワードの判定（指定がなければTrue、指定があれば部分一致）
+            is_item_match = True
+            if search_keyword:
+                is_item_match = search_keyword.lower() in str(r.get('用途', '')).lower()
+
+            if is_month_match and is_item_match:
+                filtered_records.append(r)
+
+        total = sum(int(r.get('金額', 0)) for r in filtered_records if str(r.get('金額', '')).lstrip('-').isdigit())
+
+        title = f"【{target_month}の合計収支】"
+        if search_keyword:
+            title = f"【{target_month} 「{search_keyword}」の合計】"
+
+        reply_text = f"{title}\n合計: {total}円"
 
     elif text == "一覧":
+        parts = text.split()
+        search_keyword = parts[1] if len(parts) > 1 else None
+
         records = sheet.get_all_records()
 
         # 中身が入っている有効な行だけに絞り込む
@@ -104,24 +132,34 @@ def handle_message(event):
             if r.get('日付') or r.get('用途') or r.get('金額')
         ]
 
+        # 用途（キーワード）で絞り込み
+        if search_keyword:
+            valid_records = [
+                r for r in valid_records
+                if search_keyword.lower() in str(r.get('用途', '')).lower()
+            ]
+
         if not valid_records:
-            reply_text = "まだ記録がありません。"
+            if search_keyword:
+                reply_text = f"「{search_keyword}」に該当する記録はありません。"
+            else:
+                reply_text = "まだ記録がありません。"
         else:
             lines = []
-            # 件数制限を解除し、全件ループ処理
             for r in valid_records:
                 date_val = r.get('日付', '')
                 time_val = r.get('時間', '')
                 item_val = r.get('用途', '')
                 amount_val = r.get('金額', 0)
+
                 if time_val and time_val != 'none':
                     lines.append(f"{date_val} {time_val} | {item_val} | {amount_val}円")
                 else:
                     lines.append(f"{date_val} | {item_val} | {amount_val}円")
-            # 全件メッセージを作成
-            reply_text = "【全記録一覧】\n" + "\n".join(lines)
 
-            # LINEの1通の上限（5,000文字）を超えそうな場合の安全対策
+            header = f"【「{search_keyword}」の記録一覧】\n" if search_keyword else "【全記録一覧】\n"
+            reply_text = header + "\n".join(lines)
+
             if len(reply_text) > 4000:
                 reply_text = reply_text[:3900] + \
                     "\n\n...（文字数制限のため途中省略）\n全データはスプレッドシートをご確認ください。"
