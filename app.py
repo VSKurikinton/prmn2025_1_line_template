@@ -111,10 +111,13 @@ def handle_message(event):
             # 件数制限を解除し、全件ループ処理
             for r in valid_records:
                 date_val = r.get('日付', '')
+                time_val = r.get('時間', '')
                 item_val = r.get('用途', '')
                 amount_val = r.get('金額', 0)
-                lines.append(f"{date_val} | {item_val} | {amount_val}円")
-
+                if time_val and time_val != 'none':
+                    lines.append(f"{date_val} {time_val} | {item_val} | {amount_val}円")
+                else:
+                    lines.append(f"{date_val} | {item_val} | {amount_val}円")
             # 全件メッセージを作成
             reply_text = "【全記録一覧】\n" + "\n".join(lines)
 
