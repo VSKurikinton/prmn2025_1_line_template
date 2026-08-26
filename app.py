@@ -75,14 +75,7 @@ def handle_message(event):
         "合計 [YYYY-MM] [用途]",
     ]
 
-    # スペース（全角・半角）を除去して標準化した比較用セットを作成
-    ignore_set = {re.sub(r"\s+", "", t) for t in ignore_templates}
-
-    # 入力テキストからもスペースを取り除いて判定
-    cleaned_input = re.sub(r"\s+", "", text)
-
-    # 無視対象に含まれている場合は処理を中断
-    if cleaned_input in ignore_set:
+    if text in ignore_templates:
         return 'OK'
 
     # ① 「合計」コマンド
