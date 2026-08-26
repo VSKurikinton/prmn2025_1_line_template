@@ -47,6 +47,9 @@ else:
 
 sheet = gc.open('kakeibo-bot-sheets').sheet1
 
+# --- 削除候補を一時保存する変数を定義 ---
+delete_cache = []
+
 
 @app.route("/", methods=['POST'])
 def callback():
@@ -66,6 +69,7 @@ def callback():
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
+    global delete_cache
     text = event.message.text.strip()
     reply_text = ""
 
@@ -80,6 +84,7 @@ def handle_message(event):
 
     # ① 「合計」コマンド
     if text.startswith("合計"):
+        delete_cache = []
         parts = text.split()
         target_month = None
         search_keyword = None
@@ -122,6 +127,7 @@ def handle_message(event):
 
     # ② 「一覧」コマンド（年月・用途・その両方に対応）
     elif text.startswith("一覧"):
+        delete_cache = []
         parts = text.split()
         target_month = None
         search_keyword = None
@@ -193,10 +199,39 @@ def handle_message(event):
 
     # ③ 「編集」コマンド
     elif text == "編集":
+        delete_cache = []
         reply_text = f"スプレッドシートから直接編集できます:\n{sheet.url}"
+    
+    # ④ 「削除」コマンド（全件表示）
+    elif text == "削除":
+        records = sheet.get_all_records()
 
-    # ④ 通常のデータ記録（[用途] [金額] [日付(任意)]）
+        if not records:
+            reply_text = "削除できる記録がありません。"
+            delete_cache = []
+        else:
+            # 2行目からの行番号とデータを保持
+            delete_cache = [row for row in range(2, len(records) + 2)]
+            lines = [
+                f"{i+1}. {r.get('日付','')} | {r.get('用途','')} | {r.get('金額',0)}円"
+                for i, r in enumerate(records)
+            ]
+            reply_text = "どの番号の項目を削除しますか？\n" + "\n".join(lines)
+
+    # ⑤ 削除の番号選択（数字のみ）
+    elif text.isdigit() and delete_cache:
+        select_num = int(text)
+        if 1 <= select_num <= len(delete_cache):
+            target_row = delete_cache[select_num - 1]
+            sheet.delete_rows(target_row)
+            delete_cache = []
+            reply_text = f"【削除完了】\n{select_num} 番の項目を削除しました。"
+        else:
+            reply_text = f"1 〜 {len(delete_cache)} の番号で指定してください。"
+
+    # ⑥ 通常のデータ記録（[用途] [金額] [日付(任意)]）
     else:
+        delete_cache = []
         match = re.match(r"^(\S+)\s+(-?\d+)(?:\s+(\d{4}-\d{2}-\d{2}))?$", text)
         if match:
             item, amount, date_str = match.groups()
@@ -215,6 +250,7 @@ def handle_message(event):
                 "・[用途] [金額] (例: ガシャポン 500)\n"
                 "・合計 [YYYY-MM(任意)] [用途(任意)] (例: 合計 2026-08 ガシャポン)\n"
                 "・一覧 [YYYY-MM(任意)] [用途(任意)] (例: 一覧 2026-08 ガシャポン)\n"
+                "・削除\n"
                 "・編集"
             )
 
