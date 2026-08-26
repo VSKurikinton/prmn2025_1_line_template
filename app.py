@@ -47,7 +47,7 @@ else:
 
 sheet = gc.open('kakeibo-bot-sheets').sheet1
 
-# --- 削除候補を一時保存する変数を定義 ---
+# --- 削除（無効化）候補を一時保存する変数を定義 ---
 delete_cache = []
 
 
@@ -100,6 +100,10 @@ def handle_message(event):
         filtered_records = []
 
         for r in records:
+            # 「無効」データは計算から除外
+            if str(r.get('状態', '')) == '無効':
+                continue
+
             # 年月の判定（指定があれば判定、無ければ全期間）
             is_month_match = True
             if target_month:
@@ -125,14 +129,13 @@ def handle_message(event):
         header_title = " ".join(title_parts) if title_parts else "全期間"
         reply_text = f"【{header_title} の合計収支】\n合計: {total}円"
 
-    # ② 「一覧」コマンド（年月・用途・その両方に対応）
+    # ② 「一覧」コマンド
     elif text.startswith("一覧"):
         delete_cache = []
         parts = text.split()
         target_month = None
         search_keyword = None
 
-        # 引数の解析（"一覧 2026-08" / "一覧 ガシャポン" / "一覧 2026-08 ガシャポン"）
         if len(parts) > 1:
             for p in parts[1:]:
                 if re.match(r"^\d{4}-\d{2}$", p):
@@ -142,13 +145,13 @@ def handle_message(event):
 
         records = sheet.get_all_records()
 
-        # 有効な行だけに絞り込み
+        # 有効な行だけに絞り込み（「無効」データは除外）
         valid_records = [
             r for r in records
-            if r.get('日付') or r.get('用途') or r.get('金額')
+            if (r.get('日付') or r.get('用途') or r.get('金額')) and
+               str(r.get('状態', '')) != '無効'
         ]
 
-        # 絞り込み処理
         filtered_records = []
         for r in valid_records:
             is_month_match = True
@@ -202,30 +205,38 @@ def handle_message(event):
         delete_cache = []
         reply_text = f"スプレッドシートから直接編集できます:\n{sheet.url}"
     
-    # ④ 「削除」コマンド（全件表示）
+    # ④ 「削除」コマンド（「無効」になっていないデータのみ対象）
     elif text == "削除":
         records = sheet.get_all_records()
 
-        if not records:
-            reply_text = "削除できる記録がありません。"
+        # 有効なデータのみ抽出（スプレッドシート上の行番号 row_idx を一緒に保持）
+        active_candidates = []
+        for idx, r in enumerate(records, start=2):
+            if str(r.get('状態', '')) != '無効':
+                active_candidates.append((idx, r))
+
+        if not active_candidates:
+            reply_text = "削除（無効化）できる記録がありません。"
             delete_cache = []
         else:
-            # 2行目からの行番号とデータを保持
-            delete_cache = [row for row in range(2, len(records) + 2)]
+            delete_cache = [row_idx for row_idx, r in active_candidates]
             lines = [
                 f"{i+1}. {r.get('日付','')} | {r.get('用途','')} | {r.get('金額',0)}円"
-                for i, r in enumerate(records)
+                for i, (row_idx, r) in enumerate(active_candidates)
             ]
-            reply_text = "どの番号の項目を削除しますか？\n" + "\n".join(lines)
+            reply_text = "どの番号の項目を無効化しますか？\n" + "\n".join(lines)
 
-    # ⑤ 削除の番号選択（数字のみ）
+    # ⑤ 無効化の番号選択（数字のみ）
     elif text.isdigit() and delete_cache:
         select_num = int(text)
         if 1 <= select_num <= len(delete_cache):
             target_row = delete_cache[select_num - 1]
-            sheet.delete_rows(target_row)
+            
+            # E列（5列目＝状態列）に「無効」と書き込み
+            sheet.update_cell(target_row, 5, "無効")
+            
             delete_cache = []
-            reply_text = f"【削除完了】\n{select_num} 番の項目を削除しました。"
+            reply_text = f"【無効化完了】\n{select_num} 番の項目を無効にしました。"
         else:
             reply_text = f"1 〜 {len(delete_cache)} の番号で指定してください。"
 
@@ -242,7 +253,9 @@ def handle_message(event):
             if not date_str:
                 date_str = now_data_str
                 time_str = now.strftime('%H:%M')
-            sheet.append_row([date_str, time_str, item, int(amount)])
+            
+            # 5列目（状態列）は空欄（有効）として追記
+            sheet.append_row([date_str, time_str, item, int(amount), ""])
             reply_text = f"【記録完了】\n日付: {date_str}\n時間: {time_str}\n用途: {item}\n金額: {amount}円"
         else:
             reply_text = (
