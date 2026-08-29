@@ -79,8 +79,9 @@ def handle_message(event):
         "合計 [YYYY-MM] [用途]",
     ]
 
+    # ★ テンプレート文と完全一致した場合は何もしないで終了
     if text in ignore_templates:
-        return 'OK'
+        return
 
     # ① 「合計」コマンド
     if text.startswith("合計"):
