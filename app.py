@@ -73,8 +73,6 @@ def handle_message(event):
     text = event.message.text.strip()
     reply_text = ""
 
-    # ★ 修正ポイント1: スペースの種類（全角/半角）や余計な空白の違いを吸収して無効化する判定
-    # テンプレートの「[用途]...」「一覧 [YYYY-MM]...」「合計 [YYYY-MM]...」をすべて一括で無視
     ignore_patterns = [
         r"^\[用途\][\s\u3000]*\[金額\][\s\u3000]*\[YYYY-MM-DD\]$",
         r"^一覧[\s\u3000]*\[YYYY-MM\][\s\u3000]*\[用途\]$",
@@ -270,7 +268,6 @@ def handle_message(event):
                 "・編集"
             )
 
-    # ★ 修正ポイント2: reply_textが空文字の場合は応答メッセージを送らない
     if not reply_text:
         return
 
