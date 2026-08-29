@@ -74,9 +74,9 @@ def handle_message(event):
     reply_text = ""
 
     ignore_templates = [
-        "[用途] [金額] [YYYY-MM-DD]",
-        "一覧 [YYYY-MM] [用途]",
-        "合計 [YYYY-MM] [用途]",
+        "[用途]　[金額]　[YYYY-MM-DD]",
+        "一覧　[YYYY-MM]　[用途]",
+        "合計　[YYYY-MM]　[用途]",
     ]
 
     # ★ テンプレート文と完全一致した場合は何もしないで終了
