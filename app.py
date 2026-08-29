@@ -73,15 +73,17 @@ def handle_message(event):
     text = event.message.text.strip()
     reply_text = ""
 
-    ignore_templates = [
-        "[用途]　[金額]　[YYYY-MM-DD]",
-        "一覧　[YYYY-MM]　[用途]",
-        "合計　[YYYY-MM]　[用途]",
+    # ★ 修正ポイント1: スペースの種類（全角/半角）や余計な空白の違いを吸収して無効化する判定
+    # テンプレートの「[用途]...」「一覧 [YYYY-MM]...」「合計 [YYYY-MM]...」をすべて一括で無視
+    ignore_patterns = [
+        r"^\[用途\][\s\u3000]*\[金額\][\s\u3000]*\[YYYY-MM-DD\]$",
+        r"^一覧[\s\u3000]*\[YYYY-MM\][\s\u3000]*\[用途\]$",
+        r"^合計[\s\u3000]*\[YYYY-MM\][\s\u3000]*\[用途\]$"
     ]
 
-    # ★ テンプレート文と完全一致した場合は何もしないで終了
-    if text in ignore_templates:
-        return
+    for pattern in ignore_patterns:
+        if re.match(pattern, text):
+            return  # 完全無視（何も返信せずに終了）
 
     # ① 「合計」コマンド
     if text.startswith("合計"):
@@ -267,6 +269,10 @@ def handle_message(event):
                 "・削除\n"
                 "・編集"
             )
+
+    # ★ 修正ポイント2: reply_textが空文字の場合は応答メッセージを送らない
+    if not reply_text:
+        return
 
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
